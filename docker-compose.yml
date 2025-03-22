@@ -1,0 +1,37 @@
+services:
+  dev-server:
+    build:
+      context: .
+      target: development
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - ./venv:/venv
+    environment:
+      - ENVIRONMENT=development
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+
+  test:
+    build:
+      context: .
+      target: development
+    volumes:
+      - .:/app
+    command: pytest
+
+  lint:
+    build:
+      context: .
+      target: development
+    volumes:
+      - .:/app
+    command: ruff check --fix && ruff format
+    
+  # Example of a production service
+  prod:
+    build:
+      context: .
+      target: production
+    ports:
+      - "8000:8000" 
