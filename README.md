@@ -11,58 +11,21 @@ This project is configured with Docker to simplify development and deployment. T
 ## Setup
 - `pre-commit install`
 
-### Code Linting and Formatting
+
+
+## Run local server
+`fastapi dev src/main.py`
+spins up dev server with auto reload
+
+## Test
+`pytest`
+
+## Prod deploy notes
+`fastapi run src/main.py` include uvicorn
+
+
+## Code Linting and Formatting
 Ruff is used for linting and formatting.
 https://docs.astral.sh/ruff/
 
-
-### Development
-
-1. **Start the development server** with hot-reloading:
-   ```bash
-   docker-compose up --build dev-server
-   ```
-   This will start the FastAPI application at http://localhost:8000 with auto-reload enabled.
-
-2. **Run tests**:
-   ```bash
-   docker compose run --build --rm test
-   ```
-
-3. **Run linting**:
-   ```bash
-   docker compose run --build --rm lint
-   ```
-
-4. **Run a custom command** in the development container:
-   ```bash
-   docker compose run --build --rm dev-server <command>
-   ```
-   For example:
-   ```bash
-   docker compose run --build --rm dev-server python -m src.some_script
-   ```
-
-### Production
-
-Build and run the production-ready server:
-```bash
-docker compose build server
-docker compose up prod`
-```
-> **Note**: The production service is configured without development dependencies and doesn't mount local files as volumes, making it suitable for deployment.
-
-### Docker Configuration
-
-- **Multi-stage builds**: The Dockerfile uses multi-stage builds to create efficient images
-  - `base`: Contains common Python dependencies
-  - `development`: Includes development tools and testing libraries
-  - `server`: Clean production image without dev dependencies
-
-- **Volume mounting**: In development mode, your local code is mounted into the container, allowing for instant code changes without rebuilding.
-
-### Project Structure
-
-- `src/`: Application source code
-- `requirements.txt`: Production dependencies
-- `requirements-dev.txt`: Development dependencies
+configured as a pre-commit hook
