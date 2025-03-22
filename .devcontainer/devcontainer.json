@@ -19,7 +19,13 @@
 			"extensions": [
 				"charliermarsh.ruff",
 				"ms-azuretools.vscode-docker"
-			]
+			],
+			"settings": {
+				"editor.formatOnSave": true,
+				"[python]": {
+					"editor.defaultFormatter": "charliermarsh.ruff"
+				}
+			}
 		}
 	},
 	"forwardPorts": [8000]
