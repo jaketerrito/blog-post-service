@@ -1,0 +1,24 @@
+services:
+  devcontainer:
+    build: 
+      context: ..
+      dockerfile: Dockerfile
+      target: development
+    volumes:
+      - ..:/app
+    command: sleep infinity
+    depends_on:
+      - mongodb
+  mongodb:
+    image: mongo:latest
+    restart: unless-stopped
+    volumes:
+      - mongodb-data:/data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+networks:
+  default:
+    name: dev-network
+volumes:
+  mongodb-data: 
