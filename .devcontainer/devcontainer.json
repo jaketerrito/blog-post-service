@@ -2,12 +2,12 @@
 // README at: https://github.com/devcontainers/templates/tree/main/src/docker-existing-dockerfile
 {
 	"name": "Development Environment",
-	"dockerComposeFile": "docker-compose.yml",
+	"dockerComposeFile": "docker-compose.yaml",
 	"service": "devcontainer",
 	"workspaceFolder": "/app",
 	"features": {
-		"ghcr.io/devcontainers/features/github-cli:1": {},
-		"ghcr.io/nils-geistmann/devcontainers-features/zsh:0": {}
+		"ghcr.io/devcontainers/features/github-cli:1": {}, // installs github cli
+		"ghcr.io/nils-geistmann/devcontainers-features/zsh:0": {} // installs zsh with oh-my-zsh configured
 	},
 	"customizations": {
 		"vscode": {
