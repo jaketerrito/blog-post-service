@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import List
 
 import pymongo
+from beanie import PydanticObjectId
 from fastapi import FastAPI, HTTPException
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel
@@ -26,13 +27,12 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
-@app.get("/get_blog_post")
+@app.get("/blog-post")
 async def get_blog_post(user_id: str, blog_post_id: str) -> BlogPost:
-    print("getting this one")
     print(blog_post_id)
+    print(await BlogPost.all().to_list())
     # First, find the blog post by ID
-    blog_post = await BlogPost.find_one(BlogPost.id == blog_post_id)
-    print("why")
+    blog_post = await BlogPost.find_one(BlogPost.id == PydanticObjectId(blog_post_id))
     print(blog_post)
     # Check if blog post exists
     if not blog_post:
@@ -47,28 +47,36 @@ async def get_blog_post(user_id: str, blog_post_id: str) -> BlogPost:
     return blog_post
 
 
-@app.get("/create_blog_post")
-async def create_blog_post(user_id: str) -> str:
+@app.put("/blog-post")
+async def create_blog_post(user_id: str, title: str) -> PydanticObjectId:
     blog_post = BlogPost(
         author_id=user_id,
         public=False,
+        title=title,
     )
     await blog_post.save()
-    print("created")
-    print(blog_post)
-    return blog_post.id.__str__()
+    return str(blog_post.id)
 
 
-class UpdateBlogPostContent(BaseModel):
+class UpdateOptions(BaseModel):
+    model_config = {"extra": "forbid"}  # This rejects extra fields
+    title: str | None = None
+    content: str | None = None
+    public: bool | None = None
+
+
+class UpdateBlogPost(BaseModel):
     blog_post_id: str
     user_id: str
-    content: str
+    updates: UpdateOptions
 
 
-@app.patch("/update_blog_post/content")
-async def update_blog_post_content(params: UpdateBlogPostContent):
+@app.patch("/blog-post")
+async def update_blog_post(params: UpdateBlogPost) -> BlogPost:
     # Find the blog post
-    blog_post = await BlogPost.find_one(BlogPost.id == params.blog_post_id)
+    blog_post = await BlogPost.find_one(
+        BlogPost.id == PydanticObjectId(params.blog_post_id)
+    )
 
     # Check if blog post exists
     if not blog_post:
@@ -80,49 +88,23 @@ async def update_blog_post_content(params: UpdateBlogPostContent):
             status_code=403, detail="Not authorized to modify this blog post"
         )
 
-    # Update and save the blog post
-    blog_post.content = params.content
-    blog_post.updated_at = datetime.utcnow()  # Update the timestamp
+    updates_dict = params.updates.model_dump(exclude_none=True)
+    for key, value in updates_dict.items():
+        setattr(blog_post, key, value)
+
+    blog_post.updated_at = datetime.now()  # Update the timestamp
     await blog_post.save()
 
-    return {"status": "success", "message": "Blog post updated successfully"}
+    return blog_post
 
 
-class UpdateBlogPostPublic(BaseModel):
-    id: str
-    user_id: str
-    public: bool
-
-
-@app.patch("/update_blog_post/public")
-async def update_blog_post_public(params: UpdateBlogPostPublic):
-    # Find the blog post
-    blog_post = await BlogPost.find_one(BlogPost.id == params.id)
-
-    # Check if blog post exists
-    if not blog_post:
-        raise HTTPException(status_code=404, detail="Blog post not found")
-
-    # Verify ownership - ensure author_id matches
-    if blog_post.author_id != params.user_id:
-        raise HTTPException(
-            status_code=403, detail="Not authorized to modify this blog post"
-        )
-
-    # Update and save the blog post
-    blog_post.public = params.public
-    await blog_post.save()
-
-    return "Success"
-
-
-@app.get("/get_public_blog_posts")
-async def get_public_blog_posts(
+@app.get("/blog-posts-by-author")
+async def get_blog_posts_by_author(
     author_id: str, skip: int = 0, limit: int = 20
 ) -> List[BlogPost]:
     # Execute query with sorting and pagination
     return (
-        await BlogPost.find(BlogPost.public & BlogPost.author_id == author_id)
+        await BlogPost.find({"author_id": author_id, "public": True})
         .sort([("created_at", pymongo.DESCENDING)])
         .skip(skip)
         .limit(limit)

@@ -19,6 +19,7 @@ async def blog_post():
     blog_post = BlogPost(
         id=BLOG_POST_ID,
         author_id=AUTHOR_ID,
+        title="Test title",
         public=True,
         created_at=datetime.now(),
         updated_at=datetime.now(),
@@ -32,12 +33,16 @@ async def blog_post():
 @pytest.mark.asyncio
 async def test_exists_public():
     # Test author access
-    response = await get_blog_post(user_id=AUTHOR_ID, blog_post_id=BLOG_POST_ID)
-    assert response.id == BLOG_POST_ID
+    retrieved_blog_post = await get_blog_post(
+        user_id=AUTHOR_ID, blog_post_id=str(BLOG_POST_ID)
+    )
+    assert retrieved_blog_post.id == BLOG_POST_ID
 
     # Test other user access to public post
-    response = await get_blog_post(user_id=USER_ID, blog_post_id=BLOG_POST_ID)
-    assert response.id == BLOG_POST_ID
+    retrieved_blog_post = await get_blog_post(
+        user_id=USER_ID, blog_post_id=str(BLOG_POST_ID)
+    )
+    assert retrieved_blog_post.id == BLOG_POST_ID
 
 
 @pytest.mark.asyncio
@@ -47,8 +52,10 @@ async def test_exists_not_public(blog_post):
     await blog_post.save()
 
     # Test author access to private post
-    response = await get_blog_post(user_id=AUTHOR_ID, blog_post_id=BLOG_POST_ID)
-    assert response.id == BLOG_POST_ID
+    retrieved_blog_post = await get_blog_post(
+        user_id=AUTHOR_ID, blog_post_id=BLOG_POST_ID
+    )
+    assert retrieved_blog_post.id == BLOG_POST_ID
 
     # Test other user access to private post - should get 403
     with pytest.raises(HTTPException) as excinfo:
