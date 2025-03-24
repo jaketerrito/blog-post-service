@@ -12,11 +12,7 @@
 	"customizations": {
 		"vscode": {
 			"extensions": [
-				"ms-vscode-remote.remote-containers",
 				"charliermarsh.ruff",
-				"ms-azuretools.vscode-docker",
-				"ms-python.python",
-				"ms-python.vscode-pylance",
 				"ms-python.debugpy"
 			]
 		}
@@ -26,5 +22,5 @@
 	],
 	"mounts": [
 		"source=zsh-history,type=volume,target=/app/.zsh_history" // Persist zsh history
-	],
+	]
 }

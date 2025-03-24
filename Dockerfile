@@ -10,12 +10,9 @@ FROM base AS development
 COPY requirements-dev.txt .
 RUN pip install --no-cache-dir --upgrade -r requirements-dev.txt
 
-# Development command for hot-reloading
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
-
 # Production stage - clean image without dev dependencies
 FROM base AS server
 # Copy application code
 COPY . .
 # Production command without --reload for better performance
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["fastapi", "run", "src/main.py"]
