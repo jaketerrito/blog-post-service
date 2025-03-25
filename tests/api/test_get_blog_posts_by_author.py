@@ -1,52 +1,72 @@
 from datetime import datetime, timedelta
 
-import pytest
-from beanie import PydanticObjectId
+import pytest_asyncio
 
-from src.main import get_blog_posts_by_author
 from src.models import BlogPost
+from tests.conftest import AUTHOR_ID
 
-AUTHOR_ID = "test_author_id"
+PUBLIC_POST_COUNT = 10
 
 
-@pytest.mark.asyncio
-async def test_exists_public():
-    count = 10
-    for i in range(count):
+@pytest_asyncio.fixture
+async def blog_posts():
+    for i in range(PUBLIC_POST_COUNT):
         blog_post = BlogPost(
-            id=PydanticObjectId(),
             author_id=AUTHOR_ID,
             title=str(i),
             public=True,
             created_at=datetime.now() + timedelta(days=i),
-            updated_at=datetime.now(),
-            content="Test content",
         )
         await blog_post.save()
 
     blog_post = BlogPost(
-        id=PydanticObjectId(),
         author_id=AUTHOR_ID,
         title="private",
         public=False,
-        created_at=datetime.now(),
-        updated_at=datetime.now(),
-        content="Test content",
+        created_at=datetime.now() - timedelta(days=1),
     )
     await blog_post.save()
 
-    # Test author access
-    blog_posts = await get_blog_posts_by_author(author_id=AUTHOR_ID)
-    assert len(blog_posts) == count
-    assert blog_posts[0].title == "9"  # sorted so newest is first
 
-    blog_posts = await get_blog_posts_by_author(author_id=AUTHOR_ID, skip=1, limit=1)
+def test_get_blog_posts_by_author(client, blog_posts):
+    response = client.get(
+        "/blog-posts-by-author",
+        params={"author_id": AUTHOR_ID},
+    )
+    assert response.status_code == 200
+    blog_posts = response.json()
+    assert len(blog_posts) == PUBLIC_POST_COUNT
+    assert blog_posts[0]["title"] == "9"  # sorted so newest is first
+    assert blog_posts[-1]["title"] == "0"
+
+
+def test_get_blog_posts_by_author_pagination(client, blog_posts):
+    response = client.get(
+        "/blog-posts-by-author",
+        params={"author_id": AUTHOR_ID, "skip": PUBLIC_POST_COUNT - 1, "limit": 2},
+    )
+    assert response.status_code == 200
+    blog_posts = response.json()
     assert len(blog_posts) == 1
-    assert blog_posts[0].title == "8"
+    assert blog_posts[0]["title"] == "0"
 
-    blog_posts = await get_blog_posts_by_author(author_id=AUTHOR_ID, skip=9, limit=1000)
-    assert len(blog_posts) == 1
-    assert blog_posts[0].title == "0"
 
-    blog_posts = await get_blog_posts_by_author(author_id=AUTHOR_ID, skip=1000, limit=1)
+def test_get_blog_posts_by_author_private(client, blog_posts):
+    response = client.get(
+        "/blog-posts-by-author",
+        params={"author_id": AUTHOR_ID, "user_id": AUTHOR_ID},
+    )
+    assert response.status_code == 200
+    blog_posts = response.json()
+    assert len(blog_posts) == PUBLIC_POST_COUNT + 1
+    assert blog_posts[-1]["title"] == "private"
+
+
+def test_get_blog_posts_by_nonexistent_author(client, blog_posts):
+    response = client.get(
+        "/blog-posts-by-author",
+        params={"author_id": "NOTREAL"},
+    )
+    assert response.status_code == 200
+    blog_posts = response.json()
     assert len(blog_posts) == 0

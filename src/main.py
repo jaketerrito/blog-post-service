@@ -1,7 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 import pymongo
 from beanie import PydanticObjectId
@@ -18,8 +18,8 @@ logger = logging.getLogger()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    client = AsyncIOMotorClient("mongodb://root:example@mongodb:27017")
-    await init_database(client)
+    db_client = AsyncIOMotorClient("mongodb://root:example@mongodb:27017")
+    await init_database(db_client)
     yield
     # Shutdown
 
@@ -28,13 +28,9 @@ app = FastAPI(lifespan=lifespan)
 
 
 @app.get("/blog-post")
-async def get_blog_post(user_id: str, blog_post_id: str) -> BlogPost:
-    print(blog_post_id)
-    print(await BlogPost.all().to_list())
-    # First, find the blog post by ID
+async def get_blog_post(blog_post_id: str, user_id: Optional[str] = None) -> BlogPost:
     blog_post = await BlogPost.find_one(BlogPost.id == PydanticObjectId(blog_post_id))
-    print(blog_post)
-    # Check if blog post exists
+
     if not blog_post:
         raise HTTPException(status_code=404, detail="Blog post not found")
 
@@ -48,11 +44,10 @@ async def get_blog_post(user_id: str, blog_post_id: str) -> BlogPost:
 
 
 @app.put("/blog-post")
-async def create_blog_post(user_id: str, title: str) -> PydanticObjectId:
+async def create_blog_post(user_id: str) -> PydanticObjectId:
     blog_post = BlogPost(
         author_id=user_id,
         public=False,
-        title=title,
     )
     await blog_post.save()
     return str(blog_post.id)
@@ -100,11 +95,13 @@ async def update_blog_post(params: UpdateBlogPost) -> BlogPost:
 
 @app.get("/blog-posts-by-author")
 async def get_blog_posts_by_author(
-    author_id: str, skip: int = 0, limit: int = 20
+    author_id: str, skip: int = 0, limit: int = 20, user_id: Optional[str] = None
 ) -> List[BlogPost]:
-    # Execute query with sorting and pagination
+    query = {"author_id": author_id}
+    if user_id != author_id:
+        query["public"] = True
     return (
-        await BlogPost.find({"author_id": author_id, "public": True})
+        await BlogPost.find(query)
         .sort([("created_at", pymongo.DESCENDING)])
         .skip(skip)
         .limit(limit)

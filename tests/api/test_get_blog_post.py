@@ -1,76 +1,65 @@
-from datetime import datetime
-
 import pytest
 from beanie import PydanticObjectId
-from fastapi import HTTPException
 from pytest_asyncio import fixture as async_fixture
 
-from src.main import get_blog_post
 from src.models import BlogPost
-
-BLOG_POST_ID = PydanticObjectId()
-AUTHOR_ID = "test_author_id"
-USER_ID = "test_user_id"
+from tests.conftest import AUTHOR_ID
 
 
-@async_fixture(autouse=True)
+@async_fixture()
 async def blog_post():
     """Create a test blog post"""
     blog_post = BlogPost(
-        id=BLOG_POST_ID,
         author_id=AUTHOR_ID,
-        title="Test title",
         public=True,
-        created_at=datetime.now(),
-        updated_at=datetime.now(),
-        content="Test content",
     )
     await blog_post.save()
     yield blog_post
     await blog_post.delete()
 
 
-@pytest.mark.asyncio
-async def test_exists_public():
-    # Test author access
-    retrieved_blog_post = await get_blog_post(
-        user_id=AUTHOR_ID, blog_post_id=str(BLOG_POST_ID)
+@pytest.mark.parametrize("user_id", [AUTHOR_ID, None, "other"])
+def test_exists_public(client, blog_post, user_id):
+    response = client.get(
+        "/blog-post",
+        params={"blog_post_id": blog_post.id, "user_id": user_id},
     )
-    assert retrieved_blog_post.id == BLOG_POST_ID
+    assert response.status_code == 200
+    assert response.json()["_id"] == str(blog_post.id)
 
-    # Test other user access to public post
-    retrieved_blog_post = await get_blog_post(
-        user_id=USER_ID, blog_post_id=str(BLOG_POST_ID)
+
+@async_fixture()
+async def private_blog_post():
+    """Create a test blog post"""
+    blog_post = BlogPost(
+        author_id=AUTHOR_ID,
     )
-    assert retrieved_blog_post.id == BLOG_POST_ID
-
-
-@pytest.mark.asyncio
-async def test_exists_not_public(blog_post):
-    # Make the blog post private
-    blog_post.public = False
     await blog_post.save()
+    yield blog_post
+    await blog_post.delete()
 
+
+def test_exists_not_public(client, private_blog_post):
     # Test author access to private post
-    retrieved_blog_post = await get_blog_post(
-        user_id=AUTHOR_ID, blog_post_id=BLOG_POST_ID
+    response = client.get(
+        "/blog-post",
+        params={"blog_post_id": private_blog_post.id, "user_id": AUTHOR_ID},
     )
-    assert retrieved_blog_post.id == BLOG_POST_ID
+    assert response.status_code == 200
+    assert response.json()["_id"] == str(private_blog_post.id)
 
-    # Test other user access to private post - should get 403
-    with pytest.raises(HTTPException) as excinfo:
-        await get_blog_post(user_id=USER_ID, blog_post_id=BLOG_POST_ID)
+    response = client.get(
+        "/blog-post",
+        params={"blog_post_id": private_blog_post.id, "user_id": "other"},
+    )
+    assert response.status_code == 403
 
-    assert excinfo.value.status_code == 403
-    assert "Not authorized" in excinfo.value.detail
 
-
-@pytest.mark.asyncio
-async def test_not_exist():
+def test_not_exist(client):
     non_existent_id = PydanticObjectId()
 
-    with pytest.raises(HTTPException) as excinfo:
-        await get_blog_post(user_id=USER_ID, blog_post_id=non_existent_id)
-
-    assert excinfo.value.status_code == 404
-    assert "not found" in excinfo.value.detail
+    response = client.get(
+        "/blog-post",
+        params={"blog_post_id": non_existent_id, "user_id": "other"},
+    )
+    assert response.status_code == 404

@@ -7,23 +7,25 @@ from mongomock_motor import AsyncMongoMockClient
 from src.database import init_database
 from src.main import app
 
+AUTHOR_ID = "test_author_id"
 
+
+# Configures mock mongo database
 @pytest_asyncio.fixture(autouse=True)
 async def database():
     client = AsyncMongoMockClient(database="test_db")
     await init_database(client)
 
 
+# Configures test lifespan, prevents actual database connection
 @asynccontextmanager
 async def test_lifespan(app):
-    client = AsyncMongoMockClient(database="test_db")
-    await init_database(client)
     yield
 
 
+# Configures test client
 @pytest_asyncio.fixture
-async def client():
-    app.dependency_overrides = {}
+async def client(database):
     app.router.lifespan_context = test_lifespan
 
     with TestClient(app) as test_client:

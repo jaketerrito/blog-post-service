@@ -1,83 +1,79 @@
-from datetime import datetime
-
-import pytest
-from beanie import PydanticObjectId
-from fastapi import HTTPException
-from pydantic_core import ValidationError
 from pytest_asyncio import fixture
 
-from src.main import UpdateBlogPost, update_blog_post
 from src.models import BlogPost
-
-AUTHOR_ID = "test_author_id"
-BLOG_POST_ID = PydanticObjectId()
+from tests.conftest import AUTHOR_ID
 
 
 @fixture(autouse=True)
 async def blog_post():
-    """Create a test blog post"""
     blog_post = BlogPost(
-        id=BLOG_POST_ID,
         author_id=AUTHOR_ID,
-        title="Test title",
         public=True,
-        created_at=datetime.now(),
-        updated_at=datetime.now(),
-        content="Test content",
     )
     await blog_post.save()
     yield blog_post
     await blog_post.delete()
 
 
-@pytest.mark.asyncio
-async def test_all_fields():
-    # Test author access
-    updated_blog_post = await update_blog_post(
-        params=UpdateBlogPost(
-            user_id=AUTHOR_ID,
-            blog_post_id=str(BLOG_POST_ID),
-            updates={
+def test_all_fields(client, blog_post):
+    response = client.get(
+        "/blog-post",
+        params={"blog_post_id": str(blog_post.id), "user_id": AUTHOR_ID},
+    )
+    assert response.status_code == 200
+    original_blog_post = response.json()
+
+    response = client.patch(
+        "/blog-post",
+        json={
+            "blog_post_id": str(blog_post.id),
+            "user_id": AUTHOR_ID,
+            "updates": {
                 "content": "Updated content",
                 "title": "Updated title",
                 "public": False,
             },
-        ),
+        },
     )
-    assert updated_blog_post.id == BLOG_POST_ID
-    assert updated_blog_post.content == "Updated content"
-    assert updated_blog_post.title == "Updated title"
-    assert updated_blog_post.public is False
+    assert response.status_code == 200
+    assert response.json()["_id"] == str(blog_post.id)
+    assert response.json()["content"] == "Updated content"
+    assert response.json()["title"] == "Updated title"
+    assert response.json()["public"] is False
+    assert response.json() != original_blog_post
+    patched_blog_post = response.json()
+
+    response = client.get(
+        "/blog-post",
+        params={"blog_post_id": str(blog_post.id), "user_id": AUTHOR_ID},
+    )
+    assert response.status_code == 200
+    assert response.json() == patched_blog_post
 
 
-@pytest.mark.asyncio
-async def test_invalid_field():
-    # Test author access
-    with pytest.raises(ValidationError):
-        await update_blog_post(
-            params=UpdateBlogPost(
-                user_id=AUTHOR_ID,
-                blog_post_id=str(BLOG_POST_ID),
-                updates={
-                    "author_id": "new_author_id",
-                },
-            ),
-        )
+def test_invalid_field(client, blog_post):
+    response = client.patch(
+        "/blog-post",
+        json={
+            "blog_post_id": str(blog_post.id),
+            "user_id": AUTHOR_ID,
+            "updates": {
+                "author_id": "new_author_id",
+            },
+        },
+    )
+    assert response.status_code == 422
 
 
-@pytest.mark.asyncio
-async def test_not_author():
-    # Test author access
-    with pytest.raises(HTTPException) as excinfo:
-        await update_blog_post(
-            params=UpdateBlogPost(
-                user_id="NOT_AUTHOR_ID",
-                blog_post_id=str(BLOG_POST_ID),
-                updates={"content": "Updated content"},
-            ),
-        )
-    assert excinfo.value.status_code == 403
-    assert "Not authorized" in excinfo.value.detail
-
-    blog_post = await BlogPost.find_one(BlogPost.id == BLOG_POST_ID)
-    assert blog_post.content == "Test content"
+def test_not_author(client, blog_post):
+    response = client.patch(
+        "/blog-post",
+        json={
+            "blog_post_id": str(blog_post.id),
+            "user_id": "other",
+            "updates": {
+                "content": "new_content",
+            },
+        },
+    )
+    assert response.status_code == 403
